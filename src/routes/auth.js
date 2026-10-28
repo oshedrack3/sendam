@@ -318,7 +318,6 @@ async function verifySession(request, env) {
 async function hashPassword(password) {
     const encoder = new TextEncoder();
     const salt = crypto.getRandomValues(new Uint8Array(16));
-
     const key = await crypto.subtle.importKey(
         "raw",
         encoder.encode(password),
@@ -329,7 +328,7 @@ async function hashPassword(password) {
     const bits = await crypto.subtle.deriveBits({
         name: "PBKDF2",
         salt,
-        iterations: 600000,
+        iterations: 100000,
         hash: "SHA-256"
     }, key, 256);
     return `${arrayBufferToBase64(salt)}.${arrayBufferToBase64(bits)}`;
@@ -339,7 +338,6 @@ async function verifyPassword(password, storedHash) {
     if (!storedHash || !storedHash.includes(".")) {
         return false;
     }
-
     const parts = storedHash.split(".");
     if (parts.length !== 2) {
         return false;
@@ -358,7 +356,7 @@ async function verifyPassword(password, storedHash) {
         const bits = await crypto.subtle.deriveBits({
             name: "PBKDF2",
             salt,
-            iterations: 600000,
+            iterations: 100000,
             hash: "SHA-256"
         }, key, 256);
         const actualHash = new Uint8Array(bits);
@@ -370,11 +368,11 @@ async function verifyPassword(password, storedHash) {
             difference |= actualHash[i] ^ expectedHash[i];
         }
         return difference === 0;
-    } catch {
+    } catch (error) {
+        console.error("Password verification error:", error);
         return false;
     }
 }
-
 function getToken(request) {
     const authorization = request.headers.get("Authorization") || "";
     const match = authorization.match(/^Bearer\s+(.+)$/i);
