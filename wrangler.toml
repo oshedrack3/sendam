@@ -1,0 +1,12 @@
+name = "sendam"
+main = "src/index.js"
+compatibility_date = "2026-10-24"
+
+"d1_databases": [
+{
+"binding": "DB",
+"database_name": "sendam",
+"database_id": "f9448da8-3b3c-43cf-9250-6dd82b164df8"
+}
+]
+
