@@ -25,14 +25,12 @@ export async function handleAuthRequest(request, env) {
 async function register(request, env) {
     try {
         const body = await request.json();
-
         const fullName = String(body.fullName || "").trim();
         const email = String(body.email || "").trim().toLowerCase();
         const phone = String(body.phone || "").trim();
         const city = String(body.city || "").trim();
         const homeAddress = String(body.homeAddress || "").trim();
         const password = String(body.password || "");
-
         if (!fullName || !email || !city || !homeAddress || !password) {
             return Response.json({
                 success: false,
@@ -69,9 +67,9 @@ async function register(request, env) {
                 message: "Password must be between 8 and 128 characters."
             }, { status: 400 });
         }
-        const existingEmail = await env.DB.prepare(`
-            SELECT id FROM users WHERE email = ? LIMIT 1
-        `).bind(email).first();
+        const existingEmail = await env.DB.prepare(
+            "SELECT id FROM users WHERE email = ? COLLATE NOCASE LIMIT 1"
+        ).bind(email).first();
         if (existingEmail) {
             return Response.json({
                 success: false,
@@ -79,9 +77,9 @@ async function register(request, env) {
             }, { status: 409 });
         }
         if (phone) {
-            const existingPhone = await env.DB.prepare(`
-                SELECT id FROM users WHERE phone = ? LIMIT 1
-            `).bind(phone).first();
+            const existingPhone = await env.DB.prepare(
+                "SELECT id FROM users WHERE phone = ? LIMIT 1"
+            ).bind(phone).first();
             if (existingPhone) {
                 return Response.json({
                     success: false,
@@ -133,8 +131,8 @@ async function register(request, env) {
         }, { status: 201 });
     } catch (error) {
         console.error("SendAm registration error:", error);
-        const message = String(error?.message || "").toLowerCase();
-        if (message.includes("unique constraint")) {
+        const message = String(error?.message || "");
+        if (/unique constraint/i.test(message)) {
             return Response.json({
                 success: false,
                 message: "An account with these details already exists."
@@ -142,11 +140,10 @@ async function register(request, env) {
         }
         return Response.json({
             success: false,
-            message: "Unable to create your account. Please try again."
+            message: "Registration failed: " + message
         }, { status: 500 });
     }
 }
-
 async function login(request, env) {
     try {
         const body = await request.json();
