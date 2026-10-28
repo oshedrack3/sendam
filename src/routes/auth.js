@@ -131,8 +131,8 @@ async function register(request, env) {
         }, { status: 201 });
     } catch (error) {
         console.error("SendAm registration error:", error);
-        const message = String(error?.message || "");
-        if (/unique constraint/i.test(message)) {
+        const message = String(error?.message || "").toLowerCase();
+        if (message.includes("unique constraint")) {
             return Response.json({
                 success: false,
                 message: "An account with these details already exists."
@@ -140,7 +140,7 @@ async function register(request, env) {
         }
         return Response.json({
             success: false,
-            message: "Registration failed: " + message
+            message: "Unable to create your account. Please try again."
         }, { status: 500 });
     }
 }
