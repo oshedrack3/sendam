@@ -337,38 +337,48 @@ async function getProvidersRoute(request, env) {
 async function getProviderRoute(providerId, env) {
   try {
     const provider = await env.DB.prepare(`
-            SELECT
-                id,
-                provider_name,
-                provider_type,
-                description,
-                phone,
-                email,
-                city,
-                area,
-                address,
-                image_url,
-                availability_status,
-                created_at
-            FROM providers
-            WHERE id = ?
-            AND approval_status = 'approved'
-        `).bind(providerId).first();
-    
+      SELECT
+        id,
+        provider_name,
+        provider_type,
+        description,
+        phone,
+        email,
+        city,
+        area,
+        address,
+        image_url,
+        availability_status,
+        created_at
+      FROM providers
+      WHERE id = ?
+        AND approval_status = 'approved'
+    `).bind(providerId).first();
     if (!provider) {
       return Response.json({
         success: false,
         message: "Provider not found."
       }, { status: 404 });
     }
-    
+    const servicesResult = await env.DB.prepare(`
+      SELECT
+        id,
+        service_category,
+        service_name,
+        description,
+        created_at,
+        updated_at
+      FROM provider_services
+      WHERE provider_id = ?
+      ORDER BY created_at DESC
+    `).bind(providerId).all();
+    provider.services = servicesResult.results || [];
     return Response.json({
       success: true,
       provider
     });
   } catch (error) {
     console.error("Get provider error:", error);
-    
     return Response.json({
       success: false,
       message: "Failed to retrieve provider."
