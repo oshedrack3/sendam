@@ -256,65 +256,25 @@ async function logout(request, env) {
 
 async function verifySession(request, env) {
     try {
-        const token = getToken(request);
-
-        if (!token) {
+        const auth = await authenticate(request, env);
+        if (!auth.success) {
             return Response.json({
                 success: false,
-                message: "Authentication required."
-            }, { status: 401 });
-        }
-        const now = Date.now();
-        const user = await env.DB.prepare(`
-            SELECT
-                u.id,
-                u.full_name,
-                u.email,
-                u.phone,
-                u.city,
-                u.home_address,
-                u.account_status,
-                u.created_at
-            FROM sessions s
-            INNER JOIN users u ON u.id = s.user_id
-            WHERE s.token = ?
-              AND s.active = 1
-              AND s.expires_at > ?
-            LIMIT 1
-        `).bind(token, now).first();
-        if (!user) {
-            await env.DB.prepare(`
-                DELETE FROM sessions
-                WHERE token = ?
-            `).bind(token).run();
-            return Response.json({
-                success: false,
-                message: "Your session has expired. Please log in again."
-            }, { status: 401 });
-        }
-        if (user.account_status !== "active") {
-            await env.DB.prepare(`
-                DELETE FROM sessions
-                WHERE token = ?
-            `).bind(token).run();
-            return Response.json({
-                success: false,
-                message: "Your account is currently unavailable."
-            }, { status: 403 });
+                message: auth.message
+            }, { status: auth.status });
         }
         return Response.json({
             success: true,
-            user: safeUser(user)
+            user: safeUser(auth.user)
         });
     } catch (error) {
-        console.error("SendAm session verification error:", error);
+        console.error("BiiGi session verification error:", error);
         return Response.json({
             success: false,
             message: "Unable to verify your session."
         }, { status: 500 });
     }
 }
-
 async function hashPassword(password) {
     const encoder = new TextEncoder();
     const salt = crypto.getRandomValues(new Uint8Array(16));

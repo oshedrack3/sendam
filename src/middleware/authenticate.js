@@ -21,25 +21,17 @@ export async function authenticate(request, env) {
   try {
     const session = await env.DB
       .prepare(`
-                SELECT
-                    s.token,
-                    s.user_id,
-                    s.expires_at,
-                    s.active,
-                    u.id,
-                    u.full_name,
-                    u.email,
-                    u.phone,
-                    u.city,
-                    u.account_status,
-                    u.created_at AS user_created_at,
-                    u.updated_at
-                FROM sessions s
-                INNER JOIN users u
-                    ON u.id = s.user_id
-                WHERE s.token = ?
-                LIMIT 1
-            `)
+        SELECT
+          s.token,
+          s.user_id,
+          s.expires_at,
+          s.active,
+          u.*
+        FROM sessions s
+        INNER JOIN users u ON u.id = s.user_id
+        WHERE s.token = ?
+        LIMIT 1
+      `)
       .bind(token)
       .first();
     if (!session) {
@@ -74,19 +66,17 @@ export async function authenticate(request, env) {
         message: "Your account is not active."
       };
     }
+    const {
+      token: sessionToken,
+      user_id,
+      expires_at,
+      active,
+      ...user
+    } = session;
     return {
       success: true,
-      token,
-      user: {
-        id: session.id,
-        full_name: session.full_name,
-        email: session.email,
-        phone: session.phone,
-        city: session.city,
-        account_status: session.account_status,
-        created_at: session.user_created_at,
-        updated_at: session.updated_at
-      }
+      token: sessionToken,
+      user
     };
   } catch (error) {
     console.error("[BiiGi Auth] Authentication error:", error);
