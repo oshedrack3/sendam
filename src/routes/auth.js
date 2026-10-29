@@ -256,25 +256,37 @@ async function logout(request, env) {
 
 async function verifySession(request, env) {
     try {
+        console.log("[BiiGi Auth] Verifying session...");
+        console.log("[BiiGi Auth] Method:", request.method);
+        console.log("[BiiGi Auth] URL:", request.url);
+        console.log("[BiiGi Auth] Authorization header exists:", request.headers.has("Authorization"));
         const auth = await authenticate(request, env);
+        console.log("[BiiGi Auth] Authentication result:", {
+            success: auth?.success,
+            status: auth?.status,
+            message: auth?.message,
+            userExists: !!auth?.user
+        });
         if (!auth.success) {
             return Response.json({
                 success: false,
                 message: auth.message
-            }, { status: auth.status });
+            }, { status: auth.status || 401 });
         }
         return Response.json({
             success: true,
             user: safeUser(auth.user)
         });
     } catch (error) {
-        console.error("BiiGi session verification error:", error);
+        console.error("[BiiGi Auth] Session verification error:", error?.message, error?.stack);
         return Response.json({
             success: false,
-            message: "Unable to verify your session."
+            message: "Unable to verify your session.",
+            debug: error?.message || String(error)
         }, { status: 500 });
     }
 }
+
 async function hashPassword(password) {
     const encoder = new TextEncoder();
     const salt = crypto.getRandomValues(new Uint8Array(16));
