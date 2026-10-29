@@ -1,6 +1,6 @@
 import { handleAuthRequest } from "./routes/auth.js";
 import { handleUserRequest } from "./routes/users.js";
-import { handleProviderRequest } from "./routes/provider.js";
+import { handleProviderRequest } from "./routes/providers.js";
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
