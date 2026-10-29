@@ -7,6 +7,7 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400"
 };
+
 function json(data, options = {}) {
     return Response.json(data, {
         ...options,
@@ -16,6 +17,7 @@ function json(data, options = {}) {
         }
     });
 }
+
 function addCors(response) {
     const headers = new Headers(response.headers);
     for (const [key, value] of Object.entries(corsHeaders)) {
@@ -68,7 +70,7 @@ export default {
                     await handleUserRequest(request, env)
                 );
             }
-            if (pathname.startsWith("/providers/")) {
+            if (pathname.startsWith("/providers")) {
                 const response = await handleProviderRequest(
                     request,
                     env
