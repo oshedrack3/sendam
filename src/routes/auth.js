@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { authenticate } from "../middleware/authenticate.js";
 
 export async function handleAuthRequest(request, env) {
     const url = new URL(request.url);
