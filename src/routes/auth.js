@@ -118,7 +118,7 @@ async function register(request, env) {
         ).run();
         return Response.json({
             success: true,
-            message: "Your SendAm account has been created successfully.",
+            message: "Your BiiGi account has been created successfully.",
             user: {
                 id,
                 fullName,
@@ -131,7 +131,7 @@ async function register(request, env) {
             }
         }, { status: 201 });
     } catch (error) {
-        console.error("SendAm registration error:", error);
+        console.error("Biigi registration error:", error);
         const message = String(error?.message || "").toLowerCase();
         if (message.includes("unique constraint")) {
             return Response.json({
@@ -182,7 +182,7 @@ async function login(request, env) {
         if (user.account_status !== "active") {
             return Response.json({
                 success: false,
-                message: "Your account is currently unavailable. Please contact SendAm support."
+                message: "Your account is currently unavailable. Please contact Biigi support."
             }, { status: 403 });
         }
         const validPassword = await verifyPassword(
@@ -221,7 +221,7 @@ async function login(request, env) {
             user: safeUser(user)
         });
     } catch (error) {
-        console.error("SendAm login error:", error);
+        console.error("Biigi login error:", error);
         return Response.json({
             success: false,
             message: "Unable to log in. Please try again."
@@ -247,7 +247,7 @@ async function logout(request, env) {
             message: "You have logged out successfully."
         });
     } catch (error) {
-        console.error("SendAm logout error:", error);
+        console.error("Biigi logout error:", error);
         return Response.json({
             success: false,
             message: "Unable to log out. Please try again."

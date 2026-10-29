@@ -1,5 +1,6 @@
 import { handleAuthRequest } from "./routes/auth.js";
 import { handleUserRequest } from "./routes/users.js";
+import { handleProviderRequest } from "./routes/provider.js";
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -29,7 +30,8 @@ function addCors(response) {
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
-        const pathname = url.pathname.replace(/\/+$/, "") || "/";
+        const pathname =
+            url.pathname.replace(/\/+$/, "") || "/";
         try {
             if (request.method === "OPTIONS") {
                 return new Response(null, {
@@ -43,7 +45,10 @@ export default {
                     message: "BiiGi backend is running."
                 });
             }
-            if (pathname === "/test-db" && request.method === "GET") {
+            if (
+                pathname === "/test-db" &&
+                request.method === "GET"
+            ) {
                 const result = await env.DB
                     .prepare("SELECT 1 AS connected")
                     .first();
@@ -62,6 +67,15 @@ export default {
                 return addCors(
                     await handleUserRequest(request, env)
                 );
+            }
+            if (pathname.startsWith("/providers/")) {
+                const response = await handleProviderRequest(
+                    request,
+                    env
+                );
+                if (response) {
+                    return addCors(response);
+                }
             }
             return json({
                 success: false,
