@@ -6,6 +6,8 @@ export async function handleProviderRequest(
   const url = new URL(request.url);
   const pathname =
     url.pathname.replace(/\/+$/, "") || "/";
+  // Post routes
+  
   if (
     request.method === "POST" &&
     pathname === "/providers/create"
@@ -15,6 +17,34 @@ export async function handleProviderRequest(
       env
     );
   }
+  
+  
+  
+  // Get routes
+  if (
+    request.method === "GET" &&
+    pathname === "/providers"
+  ) {
+    return await getProvidersRoute(request, env);
+  }
+  
+  if (
+    request.method === "GET" &&
+    pathname.startsWith("/providers/")
+  ) {
+    const providerId = pathname.slice("/providers/".length);
+    
+    if (!providerId || providerId.includes("/")) {
+      return Response.json({
+        success: false,
+        message: "Invalid provider ID."
+      }, { status: 400 });
+    }
+    
+    return await getProviderRoute(providerId, env);
+  }
+  
+  
   return null;
 }
 async function createProviderRoute(
@@ -180,3 +210,168 @@ async function createProviderRoute(
   }
 }
 
+async function getProvidersRoute(request, env) {
+  try {
+    const url = new URL(request.url);
+    const params = url.searchParams;
+    
+    const city = (params.get("city") || "").trim();
+    const area = (params.get("area") || "").trim();
+    const type = (params.get("type") || "").trim().toLowerCase();
+    const availability = (params.get("availability") || "").trim().toLowerCase();
+    const search = (params.get("search") || "").trim();
+    
+    const limit = Math.min(
+      Math.max(parseInt(params.get("limit") || "20", 10) || 20, 1),
+      50
+    );
+    
+    const offset = Math.max(
+      parseInt(params.get("offset") || "0", 10) || 0,
+      0
+    );
+    
+    if (type && !["individual", "business"].includes(type)) {
+      return Response.json({
+        success: false,
+        message: "Invalid provider type."
+      }, { status: 400 });
+    }
+    
+    if (
+      availability &&
+      !["available", "busy", "unavailable"].includes(availability)
+    ) {
+      return Response.json({
+        success: false,
+        message: "Invalid availability status."
+      }, { status: 400 });
+    }
+    
+    const conditions = ["approval_status = 'approved'"];
+    const values = [];
+    
+    if (city) {
+      conditions.push("LOWER(city) = LOWER(?)");
+      values.push(city);
+    }
+    
+    if (area) {
+      conditions.push("LOWER(area) = LOWER(?)");
+      values.push(area);
+    }
+    
+    if (type) {
+      conditions.push("provider_type = ?");
+      values.push(type);
+    }
+    
+    if (availability) {
+      conditions.push("availability_status = ?");
+      values.push(availability);
+    }
+    
+    if (search) {
+      conditions.push(`
+                (
+                    LOWER(provider_name) LIKE LOWER(?)
+                    OR LOWER(description) LIKE LOWER(?)
+                    OR LOWER(city) LIKE LOWER(?)
+                    OR LOWER(area) LIKE LOWER(?)
+                )
+            `);
+      
+      const term = `%${search}%`;
+      values.push(term, term, term, term);
+    }
+    
+    const where = conditions.join(" AND ");
+    
+    const [count, result] = await Promise.all([
+      env.DB.prepare(`
+                SELECT COUNT(*) AS total
+                FROM providers
+                WHERE ${where}
+            `).bind(...values).first(),
+      
+      env.DB.prepare(`
+                SELECT
+                    id,
+                    provider_name,
+                    provider_type,
+                    description,
+                    city,
+                    area,
+                    image_url,
+                    availability_status,
+                    created_at
+                FROM providers
+                WHERE ${where}
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            `).bind(...values, limit, offset).all()
+    ]);
+    
+    const total = count?.total || 0;
+    
+    return Response.json({
+      success: true,
+      providers: result.results || [],
+      pagination: {
+        total,
+        limit,
+        offset,
+        has_more: offset + limit < total
+      }
+    });
+  } catch (error) {
+    console.error("Get providers error:", error);
+    
+    return Response.json({
+      success: false,
+      message: "Failed to retrieve providers."
+    }, { status: 500 });
+  }
+}
+
+async function getProviderRoute(providerId, env) {
+  try {
+    const provider = await env.DB.prepare(`
+            SELECT
+                id,
+                provider_name,
+                provider_type,
+                description,
+                phone,
+                email,
+                city,
+                area,
+                address,
+                image_url,
+                availability_status,
+                created_at
+            FROM providers
+            WHERE id = ?
+            AND approval_status = 'approved'
+        `).bind(providerId).first();
+    
+    if (!provider) {
+      return Response.json({
+        success: false,
+        message: "Provider not found."
+      }, { status: 404 });
+    }
+    
+    return Response.json({
+      success: true,
+      provider
+    });
+  } catch (error) {
+    console.error("Get provider error:", error);
+    
+    return Response.json({
+      success: false,
+      message: "Failed to retrieve provider."
+    }, { status: 500 });
+  }
+}
