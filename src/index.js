@@ -1,12 +1,11 @@
 import { handleAuthRequest } from "./routes/auth.js";
-
+import { handleUserRequest } from "./routes/users.js";
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400"
 };
-
 function json(data, options = {}) {
     return Response.json(data, {
         ...options,
@@ -16,10 +15,8 @@ function json(data, options = {}) {
         }
     });
 }
-
 function addCors(response) {
     const headers = new Headers(response.headers);
-
     for (const [key, value] of Object.entries(corsHeaders)) {
         headers.set(key, value);
     }
@@ -29,12 +26,10 @@ function addCors(response) {
         headers
     });
 }
-
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
         const pathname = url.pathname.replace(/\/+$/, "") || "/";
-
         try {
             if (request.method === "OPTIONS") {
                 return new Response(null, {
@@ -45,7 +40,7 @@ export default {
             if (pathname === "/") {
                 return json({
                     success: true,
-                    message: "SendAm backend is running."
+                    message: "BiiGi backend is running."
                 });
             }
             if (pathname === "/test-db" && request.method === "GET") {
@@ -54,13 +49,18 @@ export default {
                     .first();
                 return json({
                     success: true,
-                    message: "SendAm database connected successfully.",
+                    message: "BiiGi database connected successfully.",
                     database: result
                 });
             }
             if (pathname.startsWith("/auth/")) {
                 return addCors(
                     await handleAuthRequest(request, env)
+                );
+            }
+            if (pathname.startsWith("/user/")) {
+                return addCors(
+                    await handleUserRequest(request, env)
                 );
             }
             return json({
@@ -70,7 +70,7 @@ export default {
                 status: 404
             });
         } catch (error) {
-            console.error("SendAm Worker error:", error);
+            console.error("BiiGi Worker error:", error);
             return json({
                 success: false,
                 message: "An internal server error occurred."
