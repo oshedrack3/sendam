@@ -4,7 +4,7 @@ import { authenticate } from "../middleware/authenticate.js";
 export async function handleAuthRequest(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname.replace(/\/+$/, "") || "/";
-
+    
     if (request.method === "POST" && pathname === "/auth/register") {
         return register(request, env);
     }
@@ -16,6 +16,9 @@ export async function handleAuthRequest(request, env) {
     }
     if (request.method === "GET" && pathname === "/auth/me") {
         return verifySession(request, env);
+    }
+    if (request.method === "POST" && pathname === "/auth/logout") {
+        return logout(request, env);
     }
     return Response.json({
         success: false,
@@ -148,7 +151,7 @@ async function register(request, env) {
 async function login(request, env) {
     try {
         const body = await request.json();
-
+        
         const loginValue = String(body.login || "").trim();
         const password = String(body.password || "");
         if (!loginValue || !password) {
@@ -232,7 +235,7 @@ async function login(request, env) {
 async function logout(request, env) {
     try {
         const token = getToken(request);
-
+        
         if (!token) {
             return Response.json({
                 success: false,
@@ -346,10 +349,11 @@ async function verifyPassword(password, storedHash) {
         return false;
     }
 }
+
 function getToken(request) {
     const authorization = request.headers.get("Authorization") || "";
     const match = authorization.match(/^Bearer\s+(.+)$/i);
-
+    
     return match ? match[1].trim() : "";
 }
 
@@ -369,7 +373,7 @@ function safeUser(user) {
 function arrayBufferToBase64(buffer) {
     const bytes = new Uint8Array(buffer);
     let binary = "";
-
+    
     for (const byte of bytes) {
         binary += String.fromCharCode(byte);
     }
@@ -379,9 +383,40 @@ function arrayBufferToBase64(buffer) {
 function base64ToUint8Array(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
-
+    
     for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i);
     }
     return bytes;
+}
+
+async function logout(request, env) {
+    try {
+        const token = getToken(request);
+        
+        if (!token) {
+            return Response.json({
+                success: false,
+                message: "You are not logged in."
+            }, { status: 401 });
+        }
+        
+        await env.DB.prepare(`
+            DELETE FROM sessions
+            WHERE token = ?
+        `).bind(token).run();
+        
+        return Response.json({
+            success: true,
+            message: "You have logged out successfully."
+        });
+        
+    } catch (error) {
+        console.error("BiiGi logout error:", error);
+        
+        return Response.json({
+            success: false,
+            message: "Unable to log out. Please try again."
+        }, { status: 500 });
+    }
 }
