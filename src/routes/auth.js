@@ -8,18 +8,19 @@ export async function handleAuthRequest(request, env) {
     if (request.method === "POST" && pathname === "/auth/register") {
         return register(request, env);
     }
+    
     if (request.method === "POST" && pathname === "/auth/login") {
         return login(request, env);
     }
+    
     if (request.method === "POST" && pathname === "/auth/logout") {
         return logout(request, env);
     }
+    
     if (request.method === "GET" && pathname === "/auth/me") {
         return verifySession(request, env);
     }
-    if (request.method === "POST" && pathname === "/auth/logout") {
-        return logout(request, env);
-    }
+    
     return Response.json({
         success: false,
         message: "Authentication route not found."
@@ -242,22 +243,26 @@ async function logout(request, env) {
                 message: "You are not logged in."
             }, { status: 401 });
         }
+        
         await env.DB.prepare(`
-            DELETE FROM sessions WHERE token = ?
+            DELETE FROM sessions
+            WHERE token = ?
         `).bind(token).run();
+        
         return Response.json({
             success: true,
             message: "You have logged out successfully."
         });
+        
     } catch (error) {
-        console.error("Biigi logout error:", error);
+        console.error("BiiGi logout error:", error);
+        
         return Response.json({
             success: false,
             message: "Unable to log out. Please try again."
         }, { status: 500 });
     }
 }
-
 async function verifySession(request, env) {
     try {
         console.log("[BiiGi Auth] Verifying session...");
@@ -390,33 +395,3 @@ function base64ToUint8Array(base64) {
     return bytes;
 }
 
-async function logout(request, env) {
-    try {
-        const token = getToken(request);
-        
-        if (!token) {
-            return Response.json({
-                success: false,
-                message: "You are not logged in."
-            }, { status: 401 });
-        }
-        
-        await env.DB.prepare(`
-            DELETE FROM sessions
-            WHERE token = ?
-        `).bind(token).run();
-        
-        return Response.json({
-            success: true,
-            message: "You have logged out successfully."
-        });
-        
-    } catch (error) {
-        console.error("BiiGi logout error:", error);
-        
-        return Response.json({
-            success: false,
-            message: "Unable to log out. Please try again."
-        }, { status: 500 });
-    }
-}
