@@ -1,31 +1,27 @@
 import { authenticate } from "../middleware/authenticate.js";
-export async function handleProviderRequest(
-  request,
-  env
-) {
+export async function handleProviderRequest(request, env) {
   const url = new URL(request.url);
-  const pathname =
-    url.pathname.replace(/\/+$/, "") || "/";
-  // Post routes
+  const pathname = url.pathname.replace(/\/+$/, "") || "/";
   
   if (
     request.method === "POST" &&
     pathname === "/providers/create"
   ) {
-    return await createProviderRoute(
-      request,
-      env
-    );
+    return await createProviderRoute(request, env);
   }
   
-  
-  
-  // Get routes
   if (
     request.method === "GET" &&
     pathname === "/providers"
   ) {
     return await getProvidersRoute(request, env);
+  }
+  
+  if (
+    request.method === "GET" &&
+    pathname === "/providers/me"
+  ) {
+    return await getMyProviderProfileRoute(request, env);
   }
   
   if (
@@ -44,9 +40,9 @@ export async function handleProviderRequest(
     return await getProviderRoute(providerId, env);
   }
   
-  
   return null;
 }
+
 async function createProviderRoute(
   request,
   env
@@ -403,6 +399,82 @@ async function getProviderRoute(providerId, env) {
     return Response.json({
       success: false,
       message: "Failed to retrieve provider."
+    }, { status: 500 });
+  }
+}
+
+async function getMyProviderProfileRoute(request, env) {
+  try {
+    const auth = await authenticate(request, env);
+    
+    if (auth instanceof Response) {
+      return auth;
+    }
+    
+    const user = auth.user ?? auth;
+    const userId = user.id;
+    
+    if (!userId) {
+      return Response.json({
+        success: false,
+        message: "Authentication required."
+      }, { status: 401 });
+    }
+    
+    const provider = await env.DB.prepare(`
+      SELECT
+        id,
+        user_id,
+        provider_name,
+        provider_type,
+        description,
+        phone,
+        email,
+        city,
+        area,
+        address,
+        image_url,
+        availability_status,
+        approval_status,
+        created_at,
+        updated_at
+      FROM providers
+      WHERE user_id = ?
+    `).bind(userId).first();
+    
+    if (!provider) {
+      return Response.json({
+        success: false,
+        message: "You haven't created a provider profile yet."
+      }, { status: 404 });
+    }
+    
+    const servicesResult = await env.DB.prepare(`
+      SELECT
+        id,
+        service_category,
+        service_name,
+        description,
+        created_at,
+        updated_at
+      FROM provider_services
+      WHERE provider_id = ?
+      ORDER BY created_at DESC
+    `).bind(provider.id).all();
+    
+    provider.services = servicesResult.results || [];
+    
+    return Response.json({
+      success: true,
+      provider
+    });
+    
+  } catch (error) {
+    console.error("Get my provider profile error:", error);
+    
+    return Response.json({
+      success: false,
+      message: "Failed to retrieve your provider profile."
     }, { status: 500 });
   }
 }
