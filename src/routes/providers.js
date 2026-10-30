@@ -209,7 +209,6 @@ async function createProviderRoute(
     }, { status: 500 });
   }
 }
-
 async function getProvidersRoute(request, env) {
   try {
     const url = new URL(request.url);
@@ -248,68 +247,90 @@ async function getProvidersRoute(request, env) {
       }, { status: 400 });
     }
     
-    const conditions = ["approval_status = 'approved'"];
+    const conditions = [
+      "p.approval_status = 'approved'"
+    ];
+    
     const values = [];
     
     if (city) {
-      conditions.push("LOWER(city) = LOWER(?)");
+      conditions.push("LOWER(p.city) = LOWER(?)");
       values.push(city);
     }
     
     if (area) {
-      conditions.push("LOWER(area) = LOWER(?)");
+      conditions.push("LOWER(p.area) = LOWER(?)");
       values.push(area);
     }
     
     if (type) {
-      conditions.push("provider_type = ?");
+      conditions.push("p.provider_type = ?");
       values.push(type);
     }
     
     if (availability) {
-      conditions.push("availability_status = ?");
+      conditions.push("p.availability_status = ?");
       values.push(availability);
     }
     
     if (search) {
-      conditions.push(`
-                (
-                    LOWER(provider_name) LIKE LOWER(?)
-                    OR LOWER(description) LIKE LOWER(?)
-                    OR LOWER(city) LIKE LOWER(?)
-                    OR LOWER(area) LIKE LOWER(?)
-                )
-            `);
-      
       const term = `%${search}%`;
-      values.push(term, term, term, term);
+      
+      conditions.push(`
+        (
+          LOWER(p.provider_name) LIKE LOWER(?)
+          OR LOWER(p.description) LIKE LOWER(?)
+          OR LOWER(p.city) LIKE LOWER(?)
+          OR LOWER(p.area) LIKE LOWER(?)
+          OR EXISTS (
+            SELECT 1
+            FROM provider_services ps
+            WHERE ps.provider_id = p.id
+            AND (
+              LOWER(ps.service_name) LIKE LOWER(?)
+              OR LOWER(ps.service_category) LIKE LOWER(?)
+              OR LOWER(ps.description) LIKE LOWER(?)
+            )
+          )
+        )
+      `);
+      
+      values.push(
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term
+      );
     }
     
     const where = conditions.join(" AND ");
     
     const [count, result] = await Promise.all([
       env.DB.prepare(`
-                SELECT COUNT(*) AS total
-                FROM providers
-                WHERE ${where}
-            `).bind(...values).first(),
+        SELECT COUNT(*) AS total
+        FROM providers p
+        WHERE ${where}
+      `).bind(...values).first(),
       
       env.DB.prepare(`
-                SELECT
-                    id,
-                    provider_name,
-                    provider_type,
-                    description,
-                    city,
-                    area,
-                    image_url,
-                    availability_status,
-                    created_at
-                FROM providers
-                WHERE ${where}
-                ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
-            `).bind(...values, limit, offset).all()
+        SELECT
+          p.id,
+          p.provider_name,
+          p.provider_type,
+          p.description,
+          p.city,
+          p.area,
+          p.image_url,
+          p.availability_status,
+          p.created_at
+        FROM providers p
+        WHERE ${where}
+        ORDER BY p.created_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(...values, limit, offset).all()
     ]);
     
     const total = count?.total || 0;
@@ -324,6 +345,7 @@ async function getProvidersRoute(request, env) {
         has_more: offset + limit < total
       }
     });
+    
   } catch (error) {
     console.error("Get providers error:", error);
     
@@ -333,7 +355,6 @@ async function getProvidersRoute(request, env) {
     }, { status: 500 });
   }
 }
-
 async function getProviderRoute(providerId, env) {
   try {
     const provider = await env.DB.prepare(`
