@@ -16,7 +16,28 @@ export async function handleProviderRequest(request, env) {
   ) {
     return await getProvidersRoute(request, env);
   }
+  if (
+    request.method === "POST" &&
+    pathname === "/providers/services"
+  ) {
+    return await addProviderServiceRoute(request, env);
+  }
   
+  if (
+    request.method === "DELETE" &&
+    pathname.startsWith("/providers/services/")
+  ) {
+    const serviceId = pathname.slice("/providers/services/".length);
+    
+    if (!serviceId || serviceId.includes("/")) {
+      return Response.json({
+        success: false,
+        message: "Invalid service ID."
+      }, { status: 400 });
+    }
+    
+    return await deleteProviderServiceRoute(request, env, serviceId);
+  }
   if (
     request.method === "GET" &&
     pathname === "/providers/me"
@@ -475,6 +496,193 @@ async function getMyProviderProfileRoute(request, env) {
     return Response.json({
       success: false,
       message: "Failed to retrieve your provider profile."
+    }, { status: 500 });
+  }
+}
+
+async function addProviderServiceRoute(request, env) {
+  try {
+    const auth = await authenticate(request, env);
+    
+    if (auth instanceof Response) return auth;
+    
+    const user = auth.user ?? auth;
+    const userId = user.id;
+    
+    if (!userId) {
+      return Response.json({
+        success: false,
+        message: "Authentication required."
+      }, { status: 401 });
+    }
+    
+    let data;
+    
+    try {
+      data = await request.json();
+    } catch {
+      return Response.json({
+        success: false,
+        message: "Invalid JSON request body."
+      }, { status: 400 });
+    }
+    
+    const serviceName = typeof data.service_name === "string" ?
+      data.service_name.trim() :
+      "";
+    
+    const serviceCategory = typeof data.service_category === "string" ?
+      data.service_category.trim() :
+      "";
+    
+    const description = typeof data.description === "string" ?
+      data.description.trim() :
+      null;
+    
+    if (!serviceName || !serviceCategory) {
+      return Response.json({
+        success: false,
+        message: "Service name and category are required."
+      }, { status: 400 });
+    }
+    
+    if (serviceName.length > 100 || serviceCategory.length > 80) {
+      return Response.json({
+        success: false,
+        message: "Service name or category is too long."
+      }, { status: 400 });
+    }
+    
+    if (description && description.length > 500) {
+      return Response.json({
+        success: false,
+        message: "Service description cannot exceed 500 characters."
+      }, { status: 400 });
+    }
+    
+    const provider = await env.DB.prepare(`
+            SELECT id
+            FROM providers
+            WHERE user_id = ?
+        `).bind(userId).first();
+    
+    if (!provider) {
+      return Response.json({
+        success: false,
+        message: "You need a provider profile before adding services."
+      }, { status: 404 });
+    }
+    
+    const existing = await env.DB.prepare(`
+            SELECT id
+            FROM provider_services
+            WHERE provider_id = ?
+            AND LOWER(service_name) = LOWER(?)
+        `).bind(provider.id, serviceName).first();
+    
+    if (existing) {
+      return Response.json({
+        success: false,
+        message: "You have already added this service."
+      }, { status: 409 });
+    }
+    
+    const serviceId = crypto.randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+    
+    await env.DB.prepare(`
+            INSERT INTO provider_services (
+                id,
+                provider_id,
+                service_category,
+                service_name,
+                description,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+      serviceId,
+      provider.id,
+      serviceCategory,
+      serviceName,
+      description || null,
+      now,
+      now
+    ).run();
+    
+    const service = await env.DB.prepare(`
+            SELECT
+                id,
+                service_category,
+                service_name,
+                description,
+                created_at,
+                updated_at
+            FROM provider_services
+            WHERE id = ?
+        `).bind(serviceId).first();
+    
+    return Response.json({
+      success: true,
+      message: "Service added successfully.",
+      service
+    }, { status: 201 });
+    
+  } catch (error) {
+    console.error("Add provider service error:", error);
+    
+    return Response.json({
+      success: false,
+      message: "Failed to add service."
+    }, { status: 500 });
+  }
+}
+
+async function deleteProviderServiceRoute(request, env, serviceId) {
+  try {
+    const auth = await authenticate(request, env);
+    
+    if (auth instanceof Response) return auth;
+    
+    const user = auth.user ?? auth;
+    const userId = user.id;
+    
+    if (!userId) {
+      return Response.json({
+        success: false,
+        message: "Authentication required."
+      }, { status: 401 });
+    }
+    
+    const result = await env.DB.prepare(`
+            DELETE FROM provider_services
+            WHERE id = ?
+            AND provider_id = (
+                SELECT id
+                FROM providers
+                WHERE user_id = ?
+            )
+        `).bind(serviceId, userId).run();
+    
+    if (!result.meta.changes) {
+      return Response.json({
+        success: false,
+        message: "Service not found."
+      }, { status: 404 });
+    }
+    
+    return Response.json({
+      success: true,
+      message: "Service removed successfully."
+    });
+    
+  } catch (error) {
+    console.error("Delete provider service error:", error);
+    
+    return Response.json({
+      success: false,
+      message: "Failed to remove service."
     }, { status: 500 });
   }
 }
